@@ -1,5 +1,8 @@
 import TelegramBot from 'node-telegram-bot-api';
 import logger from '../utils/logger.js';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
 
 let bot = null;
 
@@ -45,15 +48,14 @@ export async function sendToTelegram(summary, images = [], relevantImagesWithCap
         await sleep(500);
     }
 
-    // 2. Önemli görselleri (caption'ları ile birlikte) gönder
+    // 2. Önemli görselleri gönder
     if (relevantImagesWithCaptions && relevantImagesWithCaptions.length > 0) {
-        // Obje dizisini filtrele ve ilgili image'lara caption'u ekle
         const relevantImages = relevantImagesWithCaptions
             .filter(item => item.index >= 0 && item.index < images.length)
             .map(item => {
                 const img = images[item.index];
                 if (img) {
-                    img.ai_caption = item.caption; // AI'dan gelen Türkçe caption
+                    img.ai_caption = item.caption;
                 }
                 return img;
             })
@@ -64,7 +66,6 @@ export async function sendToTelegram(summary, images = [], relevantImagesWithCap
             return;
         }
 
-        // Uzantı belirleyici yardımcı
         const getExt = (mime) => {
             if (mime.includes('png')) return 'png';
             if (mime.includes('gif')) return 'gif';
@@ -72,43 +73,38 @@ export async function sendToTelegram(summary, images = [], relevantImagesWithCap
             return 'jpg';
         };
 
-        if (relevantImages.length === 1) {
-            // Tek görsel → sendPhoto
-            const img = relevantImages[0];
-            const caption = img.ai_caption || truncateCaption(img.alt, 'Haber görseli');
+        const tempDir = os.tmpdir();
+
+        for (let i = 0; i < relevantImages.length; i++) {
+            const img = relevantImages[i];
             const ext = getExt(img.mimeType || 'image/jpeg');
-            await telegramBot.sendPhoto(chatId, img.buffer, {
-                caption: `▪️ ${caption}`,
-                parse_mode: 'Markdown'
-            }, {
-                filename: `image.${ext}`,
-                contentType: img.mimeType || 'image/jpeg'
-            });
-            logger.info('1 görsel Telegram\'a gönderildi.');
+            const tempFilePath = path.join(tempDir, `telegram_bot_${Date.now()}_${i}.${ext}`);
 
-        } else if (relevantImages.length <= 10) {
-            // Birden fazla → Her görseli ayrı gönder
-            for (let i = 0; i < relevantImages.length; i++) {
-                const img = relevantImages[i];
-                const aiCaptionText = img.ai_caption || truncateCaption(img.alt, `Görsel ${i + 1}`);
-                const caption = i === 0
-                    ? `▪️ *Haber Görselleri* (${relevantImages.length} adet)\n\n${aiCaptionText}`
-                    : `▪️ ${aiCaptionText}`;
+            let captionText = img.ai_caption || truncateCaption(img.alt, `Görsel ${i + 1}`);
+            let caption = `▪️ ${captionText}`;
+            if (i === 0 && relevantImages.length > 1) {
+                caption = `▪️ *Haber Görselleri* (${relevantImages.length} adet)\n\n${captionText}`;
+            }
 
-                const ext = getExt(img.mimeType || 'image/jpeg');
+            try {
+                fs.writeFileSync(tempFilePath, img.buffer);
 
-                await telegramBot.sendPhoto(chatId, img.buffer, {
+                await telegramBot.sendPhoto(chatId, fs.createReadStream(tempFilePath), {
                     caption,
                     parse_mode: 'Markdown'
-                }, {
-                    filename: `image_${i}.${ext}`,
-                    contentType: img.mimeType || 'image/jpeg'
                 });
 
                 await sleep(800);
+            } catch (err) {
+                logger.error(`Görsel gönderilirken hata: ${err.message}`);
+            } finally {
+                if (fs.existsSync(tempFilePath)) {
+                    fs.unlinkSync(tempFilePath);
+                }
             }
-            logger.info(`${relevantImages.length} görsel Telegram'a gönderildi.`);
         }
+
+        logger.info(`${relevantImages.length} görsel Telegram'a gönderildi.`);
     } else {
         logger.info('Gönderilecek önemli görsel yok (AI tarafından seçilmedi).');
     }

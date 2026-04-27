@@ -88,15 +88,14 @@ export async function summarizeNews(mailBody, subject, date, images = []) {
         userContent.push({
             type: 'text',
             text: `\nAşağıda bu haberlere ait ${images.length} adet görsel var. ` +
-                `Tüm görselleri sırayla incele ve her biri için KESİN karar ver:\n` +
-                `- ONAY: Yalnızca yazılım arayüzü (UI ekran görüntüsü), benchmark/performans grafiği veya kod/terminal çıktısı.\n` +
-                `- RED: Bülten logosu/banner, stok fotoğraf, illüstrasyon, hayvan, robot veya soyut çizim.\n\n` +
-                `Mesajının EN SONUNA, başka hiçbir metin eklemeden, TAM OLARAK şu bloğu yaz:\n` +
+                `Bunları analiz et. Bütün görselleri sırasıyla incele ve her biri için KESİN karar ver.\n` +
+                `- SADECE yazılım arayüzü (UI), benchmark grafiği veya kod/terminal içeren görseller onaylanmalıdır.\n` +
+                `- Eğer görsel bir bülten başlığı (The Rundown AI vb. logolar), stok foto, veya balina/robot gibi soyut/dekoratif bir illüstrasyon ise onu kesinlikle REDDET.\n\n` +
+                `Görsel analizini en sona şu formatta ekle:\n` +
                 `IMAGE_CAPTIONS:\n` +
-                `1:: RED - [kısa sebep]\n` +
-                `2:: KABUL - [görselin içeriği: hangi arayüz/grafik/metrik]\n` +
-                `3:: RED - [kısa sebep]\n` +
-                `(Her görsel için mutlaka bir satır olsun. Format dışına çıkma.)`
+                `1:: RED - [Neden reddedildiği]\n` +
+                `2:: KABUL - [Görselin tam arayüz/grafik açıklaması]\n` +
+                `3:: RED - [Neden reddedildiği]`
         });
 
         for (let i = 0; i < images.length; i++) {
@@ -130,12 +129,12 @@ export async function summarizeNews(mailBody, subject, date, images = []) {
 
         // IMAGE_CAPTIONS KABUL/RED satırlarını çıkar ve parse et
         let relevantImagesWithCaptions = [];
-        const captionsMatch = summary.match(/IMAGE[_\s]CAPTIONS\s*:\s*\n([\s\S]*)/i);
+        const captionsMatch = summary.match(/IMAGE_CAPTIONS:([\s\S]*)/);
         if (captionsMatch) {
             const lines = captionsMatch[1].split('\n');
             for (const line of lines) {
-                // Başta/sonda boşluk, :: veya : : veya — verimli eşleştir
-                const m = line.trim().match(/^(\d+)\s*:{1,2}\s*KABUL\s*[-–:]\s*(.+)$/i);
+                // Sadece KABUL ile başlayanları al
+                const m = line.match(/^(\d+)::\s*KABUL\s*-\s*(.+)$/i);
                 if (m) {
                     const idx = parseInt(m[1], 10) - 1; // 1-based → 0-based
                     if (!isNaN(idx) && idx >= 0 && idx < images.length) {
@@ -146,10 +145,11 @@ export async function summarizeNews(mailBody, subject, date, images = []) {
                     }
                 }
             }
-            summary = summary.replace(/IMAGE[_\s]CAPTIONS\s*:[\s\S]*/i, '').trim();
-        } else {
-            logger.warn('IMAGE_CAPTIONS bloğu bulunamadı — model formatı tutmadı.');
+            summary = summary.replace(/IMAGE_CAPTIONS:[\s\S]*/, '').trim();
         }
+
+        // Eski format desteği (Eğer hiç KABUL yok ama eskiler kaldıysa iptal, sadece KABUL esastır)
+        // relevantImagesWithCaptions fallback'ini kaldırıyoruz çünkü yeni sistem çok net.
 
         logger.info(`AI özetleme tamamlandı. ${relevantImagesWithCaptions.length} geçerli önemli görsel tespit edildi.`);
         return { summary, relevantImagesWithCaptions };

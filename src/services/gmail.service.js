@@ -110,6 +110,15 @@ async function downloadImage(url) {
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
+        // WebP binary kontrolü: header image/jpeg dese bile içerik WebP olabilir
+        // RIFF....WEBP imzası — Telegram sendPhoto tam ekran açamıyor
+        if (buffer.length >= 12 &&
+            buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+            buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
+            logger.warn(`WebP görsel atlanıyor (Telegram açamıyor): ${url.substring(0, 80)}...`);
+            return null;
+        }
+
         // Çok küçük görselleri atla (< 2KB = muhtemelen tracking pixel)
         if (buffer.length < 2048) return null;
 
