@@ -1,0 +1,33 @@
+{
+  "name": "ai-news-telegram-bot",
+  "version": "1.0.0",
+  "description": "Günlük AI haber özetlerini Gmail'den çekip Telegram'a gönderen bot",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "now": "node src/index.js --now",
+    "test:gmail": "node src/index.js --test-gmail",
+    "test:ai": "node src/index.js --test-ai",
+    "test:telegram": "node src/index.js --test-telegram"
+  },
+  "keywords": [
+    "ai",
+    "news",
+    "telegram",
+    "bot",
+    "gmail"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "googleapis": "^171.4.0",
+    "node-cron": "^4.2.1",
+    "node-telegram-bot-api": "^0.67.0",
+    "openai": "^6.34.0",
+    "winston": "^3.19.0"
+  }
+}
