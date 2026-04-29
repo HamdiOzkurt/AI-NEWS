@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
 import cron from 'node-cron';
 import { fetchLatestNewsMail } from './services/gmail.service.js';
 import { summarizeNews } from './services/ai.service.js';
@@ -26,6 +28,16 @@ async function runPipeline() {
             return;
         }
 
+        // Mükerrer gönderimi önlemek için ID kontrolü
+        const LAST_MAIL_ID_FILE = path.join(process.cwd(), 'last_mail_id.txt');
+        if (fs.existsSync(LAST_MAIL_ID_FILE)) {
+            const lastId = fs.readFileSync(LAST_MAIL_ID_FILE, 'utf8').trim();
+            if (lastId === mail.id) {
+                logger.info('Bu mail daha önce işlenmiş (ID aynı), atlanıyor.');
+                return;
+            }
+        }
+
         logger.info(`Mail alındı: "${mail.subject}" — ${mail.images.length} görsel`);
 
         // 2. AI ile özetle (metin + görseller)
@@ -42,6 +54,10 @@ async function runPipeline() {
         logger.info('Telegram\'a gönderiliyor...');
         await sendToTelegram(summary, mail.images, relevantImagesWithCaptions);
         logger.info('Telegram\'a başarıyla gönderildi!');
+
+        // Başarılı gönderim sonrası ID'yi kaydet
+        fs.writeFileSync(LAST_MAIL_ID_FILE, mail.id);
+        logger.info(`İşlenen son mail ID'si kaydedildi: ${mail.id}`);
 
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         logger.info(`Pipeline tamamlandı (${elapsed}s)`);
@@ -131,7 +147,7 @@ if (args.includes('--now')) {
     })();
 
 } else {
-    const schedule = process.env.CRON_SCHEDULE || '0 9,12 * * *';
+    const schedule = process.env.CRON_SCHEDULE || '0 9-14 * * *';
 
     logger.info('═'.repeat(50));
     logger.info('AI News Telegram Bot başlatıldı!');

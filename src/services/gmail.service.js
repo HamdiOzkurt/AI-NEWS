@@ -297,7 +297,7 @@ async function getMailContent(gmail, messageId) {
 
     logger.info(`Mail bulundu: "${subject}" (${date}) — ${images.length} görsel`);
 
-    return { subject, body, date, images };
+    return { id: messageId, subject, body, date, images };
 }
 
 /**
